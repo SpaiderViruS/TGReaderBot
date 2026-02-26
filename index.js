@@ -1,9 +1,8 @@
 import 'dotenv/config'
 import { Telegraf } from 'telegraf'
-import PG from 'pg';
+import { pool } from './db.js'
 
 const bot = new Telegraf(process.env.BOT_TOKEN);
-const pool = new PG.Pool({ connectionString: process.env.DATABASE_URL })
 
 function normalizeLine(s) {
   return String(s || "")
@@ -88,9 +87,7 @@ function parseStatus(text) {
   const line = lines[idx]
 
   // Флот
-  console.log(lines)
   const fleetLine = lines.find(l => l.toLowerCase().includes('флот')) || null
-  console.log(fleetLine)
 
   let fleetNum = null
   let fleetName = null

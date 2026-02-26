@@ -16,6 +16,9 @@ MAIL_FROM="bot@example.com"
 MAIL_TO="you@example.com"
 ```
 
+# Миграции
+Таблицы и все запросы настроены только под PostgreSQL
+
 # Запуск
 Для запуска бота необходимо ввести в консоль `npm run dev`
 

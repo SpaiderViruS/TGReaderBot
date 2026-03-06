@@ -11,146 +11,111 @@ function normalizeLine(s) {
     .replace(/\s+/g, " ");
 }
 
-function parseKV(line) {
-  const m = line.match(/^(.+?)\s*(?:--|—|–|-|:)\s*(.+)$/);
-  if (!m) return null;
+function looksLikeOperationalMessage(text) {
+  const s = String(text || "").toLowerCase()
 
-  const key = normalizeLine(m[1]);
-  const value = normalizeLine(m[2]);
+  const hasWell =
+    /скв\.?\s*№?\s*\d+/i.test(s) ||
+    /скважина\s*\d+/i.test(s)
 
-  if (!key || !value) return null;
+  const hasStage = /стадия\s*\d+\/\d+/i.test(s)
+  const hasFleet = /флот/i.test(s)
+  const hasPressure = /(рнач|рср|ркон|pmin|pmax|isip)/i.test(s)
+  const hasDate = /\d{2}\.\d{2}\.\d{2,4}/.test(s)
 
-  return { key, value };
+  const score =
+    (hasWell ? 2 : 0) +
+    (hasStage ? 1 : 0) +
+    (hasFleet ? 1 : 0) +
+    (hasPressure ? 1 : 0) +
+    (hasDate ? 1 : 0)
+
+  return score >= 2
 }
 
-function isDateRangeLine(s) {
-  const t = normalizeLine(s);
-  return /^(\d{2}\.\d{2}\.(?:\d{2}|\d{4})|\d{4}-\d{2}-\d{2})\s+\d{2}:\d{2}\s*-\s*\d{2}:\d{2}$/.test(
-    t,
-  );
+function isTrashMessage(text) {
+  const s = String(text || "")
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, " ");
+
+  if (!s) return true;
+
+  const trashPatterns = [
+    /^ок$/i,
+    /^ок+$/i,
+    /^оке?й$/i,
+    /^ok$/i,
+    /^thanks$/i,
+    /^thx$/i,
+    /^спасибо$/i,
+    /^спс$/i,
+    /^понял$/i,
+    /^принял$/i,
+    /^ясно$/i,
+    /^ага$/i,
+    /^угу$/i,
+    /^добро$/i,
+    /^\+$/i,
+    /^-\s*$/,
+  ];
+
+  if (trashPatterns.some((re) => re.test(s))) return true;
+
+  if (
+    s.length <= 10 &&
+    !/\d/.test(s) &&
+    !/(грп|огрп|скв|скважина|стадия|флот|пласт|isip|давл|pн|pср|pкон|q|v)/i.test(
+      s,
+    )
+  ) {
+    return true;
+  }
+
+  return false;
 }
 
 function parseMessage(text) {
   const lines = String(text || "")
     .split(/\r?\n/)
-    .map(normalizeLine);
-
-  const nonEmpty = lines.filter(Boolean);
-  if (nonEmpty.length < 4) return null;
-
-  // ищем ключевые строки
-  const wellIdx = nonEmpty.findIndex((l) => /^Скважина\s+/i.test(l));
-  const stageIdx = nonEmpty.findIndex((l) => /^Стадия\s+/i.test(l));
-  const dateIdx = nonEmpty.findIndex(isDateRangeLine);
-
-  if (wellIdx === -1 || stageIdx === -1 || dateIdx === -1) return null;
-
-  const headerLines =
-    nonEmpty.slice(0, Math.min(wellIdx, stageIdx)).join(" ") || null;
-
-  const wellLine = nonEmpty[wellIdx];
-  const stageLine = nonEmpty[stageIdx];
-
-  // обычно "ОГРП (+)" прямо перед датой, но не всегда, поэтому:
-  const opLine = nonEmpty[dateIdx - 1] || null;
-  const dateRangeLine = nonEmpty[dateIdx];
-
-  const fields = {};
-  for (let i = dateIdx + 1; i < nonEmpty.length; i++) {
-    const kv = parseKV(nonEmpty[i]);
-    if (!kv) continue;
-    fields[kv.key] = kv.value;
-  }
-
-  if (Object.keys(fields).length === 0) return null;
-
-  //TODO: узнать какие поля ожидает наш сервак
-  return {
-    headerLine: headerLines,
-    wellLine,
-    stageLine,
-    opLine,
-    dateRangeLine,
-    fields,
-  };
-}
-
-function parseStatus(text) {
-  const lines = String(text || "")
-    .split(/\r?\n/)
     .map(normalizeLine)
     .filter(Boolean);
 
-  // ищем строку "Приступили ..."
-  const idx = lines.findIndex((l) => /приступили/i.test(l));
-  if (idx === -1) return null;
+  const fullText = lines.join("\n");
 
-  const line = lines[idx];
-
-  // Флот
-  const fleetLine = lines.find((l) => l.toLowerCase().includes("флот")) || null;
-
+  let well = null;
   let fleetNum = null;
-  let fleetName = null;
+  let bush = null;
+  let fieldName = null;
+  let stage = null;
 
-  if (fleetLine) {
-    const m = line.match(
-      /\b(\d{4})\b.*?\b(\d{3})\b.*?\bпорт\s*(\d+\/\d+|\d+)\b/i,
-    );
-    if (m) {
-      fleetName = m[1].trim();
-      fleetNum = m[2];
-    }
-  }
+  well =
+    fullText.match(/(?:Скважина|Скв\.?)\s*№?\s*(\d{3,6})/i)?.[1] ||
+    fullText.match(/\b(\d{4})\b/)?.[1] ||
+    null;
 
-  // тип работ
-  const work = (line.match(/\b(ОГРП|ГРП)\b/i)?.[1] || null)?.toUpperCase();
-
-  // Порт
-  let grp_number = null;
-  const portMatch = line.match(/\bпорт\b\s*(?:№|:)?\s*([0-9]+(?:\/[0-9]+)?)/i);
-  if (portMatch) grp_number = portMatch[1];
-
-  const nums = line.match(/\d+/g) || [];
-
-  const well = line.match(/\b\d{4}\b/)?.[0] || null;
+  fleetNum = fullText.match(/Флот[^\n]*?№\s*(\d+)/i)?.[1] || null;
 
   // Куст
-  let bush = null;
-  const threeDigits = line.match(/\b\d{3}\b/g) || [];
-  if (threeDigits.length) bush = threeDigits[0];
+  bush = fullText.match(/(?:куст|КП)\s*№?\s*(\d{2,4})/i)?.[1] || null;
 
-  if (!grp_number) {
-    const ratio = line.match(/\b\d+\/\d+\b/);
-    if (ratio) grp_number = ratio[0];
+  stage = fullText.match(/Стадия\s*(\d+\/\d+)/i)?.[1] || null;
+
+  const fieldLine = lines.find((l) => /м\/р|месторожд/i.test(l)) || null;
+
+  if (fieldLine) {
+    fieldName = fieldLine.replace(/^Наименование\s*/i, "").trim();
   }
 
-  // Минимум: должен быть хотя бы well или grp_number или bush, иначе это не то
-  if (!well && !bush && !grp_number) return null;
+  if (!well && !fleetNum && !bush && !fieldName && !stage) return null;
 
   return {
-    type: "start_work",
-    fleetLine,
-    fleetNum,
-    fleetName,
-    work,
     well,
+    fleetNum,
     bush,
-    grp_number,
-    raw: line,
+    fieldName,
+    stage,
   };
-}
-
-function parseAny(text) {
-  // Отчет по операции
-  const report = parseMessage(text);
-  if (report) return { type: "report", ...report };
-
-  // Для сообщений типа ".... Приступили к работе"
-  const status = parseStatus(text);
-  if (status) return status;
-
-  return null;
 }
 
 async function saveReport(parsed) {
@@ -183,15 +148,22 @@ async function logError(error, chatId) {
 
 bot.on("text", async (ctx) => {
   const text = ctx.message.text;
-  const parsed = parseAny(text);
 
-  // Фильтр от коротких сообщений типа "'Спасибо', 'Ок'"
-  if (!text || text.length > 20000) return;
+  if (isTrashMessage(text)) return;
 
-  if (!parsed) return;
+  const parsed = parseMessage(text);
+
+  if (!looksLikeOperationalMessage(text)) return
+
+  const payload = {
+    rawText: text,
+    parsed,
+    parseStatus: parsed ? "meta_only" : "raw_only",
+    receivedAt: new Date().toISOString(),
+  }
 
   try {
-    await saveReport(parsed);
+    await saveReport(payload);
   } catch (error) {
     console.error(`Error while save: `, error);
     await logError(error, ctx.chat?.id);

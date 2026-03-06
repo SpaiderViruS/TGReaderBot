@@ -1,0 +1,69 @@
+services:
+  db:
+    image: postgres:16
+    container_name: tg_reader_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${DB_NAME}
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+    networks:
+      - tg-reader-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -d ${DB_NAME}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    volumes:
+      - ./init:/docker-entrypoint-initdb.d
+      - pg_data:/var/lib/postgresql/data
+
+  telegram:
+    build:
+      context: bot
+      dockerfile: Dockerfile
+    container_name: tg_reader_bot
+    environment:
+      BOT_TOKEN: ${BOT_TOKEN}
+      DATABASE_URL: postgresql://${DB_USER}:${DB_PASSWORD}@db:5432/${DB_NAME}
+    networks:
+      - tg-reader-network
+    dns:
+      - 8.8.8.8 # Google Public DNS
+      - 1.1.1.1 # Cloudflare DNS
+    restart: ${RESTART_POLICY:-unless-stopped}
+    depends_on:
+      db:
+        condition: service_healthy
+
+  scheduler:
+    build:
+      context: scheduler
+      dockerfile: Dockerfile
+    container_name: tg_reader_scheduler
+    environment:
+      SMTP_HOST: ${SMTP_HOST}
+      SMTP_USER: ${SMTP_USER}
+      SMTP_PASS: ${SMTP_PASS}
+      SMTP_SECURE: ${SMTP_SECURE}
+      MAIL_TO: ${MAIL_TO}
+      MAIL_FROM: ${MAIL_FROM}
+      REPORT_SECRET: ${REPORT_SECRET}
+      DATABASE_URL: postgresql://${DB_USER}:${DB_PASSWORD}@db:5432/${DB_NAME}
+    networks:
+      - tg-reader-network
+    dns:
+      - 8.8.8.8 # Google Public DNS
+      - 1.1.1.1 # Cloudflare DNS
+    restart: ${RESTART_POLICY:-unless-stopped}
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  pg_data:
+
+networks:
+  tg-reader-network:
+    driver: bridge
+

@@ -1,4 +1,3 @@
-import "dotenv/config";
 import cron from "node-cron";
 import { pool } from "./db.js";
 import nodemailer from "nodemailer";
@@ -13,7 +12,7 @@ const mailer = nodemailer.createTransport({
     user: process.env.SMTP_USER,
     pass: process.env.SMTP_PASS,
   },
-})
+});
 
 async function logError(error, chatId) {
   try {
@@ -126,7 +125,7 @@ async function runOnce() {
     try {
       await fs.rm(tmpDir, { recursive: true, force: true });
     } catch (err) {
-      console.error(err)
+      console.error(err);
     }
   }
 }

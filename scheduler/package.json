@@ -1,0 +1,22 @@
+{
+  "name": "tgbot",
+  "version": "1.0.0",
+  "main": "index.js",
+  "type": "module",
+  "scripts": {
+    "dev": "./node_modules/.bin/dotenvx run -f ../.env -- nodemon index.js",
+    "start": "node index.js"
+  },
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "dependencies": {
+    "node-cron": "^4.2.1",
+    "nodemailer": "^8.0.1",
+    "pg": "^8.19.0"
+  },
+  "devDependencies": {
+    "@dotenvx/dotenvx": "^1.53.0",
+    "nodemon": "^3.1.14"
+  }
+}

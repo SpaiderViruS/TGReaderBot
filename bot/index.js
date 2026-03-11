@@ -150,6 +150,7 @@ async function logError(error, chatId) {
 bot.on("text", async (ctx) => {
   const text = ctx.message.text;
 
+  console.log('[BOT] recieve message')
   if (isTrashMessage(text)) return;
 
   const parsed = parseMessage(text);

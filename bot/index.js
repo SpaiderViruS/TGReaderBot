@@ -129,6 +129,7 @@ async function saveReport(parsed) {
 
   const { rows } = await pool.query(query, values);
 
+  console.log('[BOT] message parsed successfuly')
   return rows[0].id_code;
 }
 
@@ -165,7 +166,7 @@ bot.on("text", async (ctx) => {
   try {
     await saveReport(payload);
   } catch (error) {
-    console.error(`Error while save: `, error);
+    console.error(`[BOT] Error while save: `, error);
     await logError(error, ctx.chat?.id);
   }
 });

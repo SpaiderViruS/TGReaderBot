@@ -12,6 +12,11 @@ const mailer = nodemailer.createTransport({
     user: process.env.SMTP_USER,
     pass: process.env.SMTP_PASS,
   },
+  logger: true,
+  debug: true,
+  connectionTimeout: 20000,
+  greetingTimeout: 20000,
+  socketTimeout: 20000,
 });
 
 async function logError(error, chatId) {
@@ -85,6 +90,9 @@ async function runOnce() {
 
     // Шифруем в .enc
     await encryptFileAESGCM(plainPath, encPath, process.env.REPORT_SECRET);
+
+    await mailer.verify();
+    console.log("[worker] verify OK")
 
     await mailer.sendMail({
       from: process.env.MAIL_FROM || process.env.SMTP_USER,
